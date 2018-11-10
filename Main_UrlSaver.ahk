@@ -1,10 +1,22 @@
 ﻿SetWorkingDir %A_ScriptDir%
 IfNotExist, %A_ScriptDir%\AllSites
-				FileCreateDir, %A_ScriptDir%\AllSites
+	FileCreateDir, %A_ScriptDir%\AllSites
 IfNotExist, %A_ScriptDir%\Temp
-				FileCreateDir, %A_ScriptDir%\Temp
+	FileCreateDir, %A_ScriptDir%\Temp
 IfNotExist, %A_ScriptDir%\Perdate
-				FileCreateDir, %A_ScriptDir%\Perdate
+	FileCreateDir, %A_ScriptDir%\Perdate
+IfNotExist, %A_ScriptDir%\Exclude
+	FileCreateDir, %A_ScriptDir%\Exclude
+				
+Global cat_global
+Global exclude
+Global excludeCheck
+Global excludeMode
+Global exclude_file
+
+exclude_file = %A_ScriptDir%\Exclude\Exclude.txt
+FileRead, ExcludeMode, %A_ScriptDir%\Exclude\ExcludeMode.txt
+FileRead, exclude, %exclude_file%
 
 ~$f6::
  {
@@ -18,6 +30,7 @@ actions:
    if (count = 2)
     {
 		MakeGui()
+		FileRead, exclude, %exclude_file%
     }
    else if (count = 3)
     {
@@ -48,10 +61,22 @@ return
 MakeGui(){
 
 	Gui, Add, Text,, Please select an option
+	if(excludeMode){
+		Gui, Add, Text,, The ExcludeMode is turned on
+	}
+	else
+	{
+		Gui, Add, Text,, The ExcludeMode is turned off
+	}
 	Gui, Add, Button, x10 y50 w100 h30, Save  ; The label ButtonOK (if it exists) will be run when the button is pressed.
 	Gui, Add, Button, x110 y50 w100 h30, Open
 	Gui, Add, Button, x210 y50 w100 h30, Search
 	Gui, Add, Button, x310 y50 w100 h30, Delete
+	Gui, Add, Button, x410 y50 w100 h30, Exclude
+	IfExist, %A_ScriptDir%\Exclude\Exclude.txt
+		Gui, Add, Button, x510 y50 w100 h30, Include
+	
+	Gui, Add, Button, x810 y50 w100 h30, ExcludeMode
 	Gui, Show,, UrlSaver
 	return  ; End of auto-execute section. The script is idle until the user does something.
 
@@ -69,6 +94,23 @@ MakeGui(){
 	Gui Destroy
 	return
 	
+	ButtonExclude:
+	Gui Destroy
+	ExcludeFile()
+	return
+	
+	ButtonInclude:
+	Gui Destroy
+	IncludeFile()
+	return
+	
+	ButtonExcludeMode:
+	ExcludeMode()
+	Gui Destroy
+	Sleep, 125
+	MakeGui()
+	return
+	
 	
 	ButtonDelete:
 	WinActivate, ahk_exe chrome.exe
@@ -80,12 +122,80 @@ MakeGui(){
 	ButtonSave:
 	WinActivate, ahk_exe chrome.exe
 	Sleep, 250
-	SaveUrls()
 	Gui Destroy
+	SaveUrls()
 	return
 
 
 }
+
+ExcludeFile(){
+	
+	excludeCheck = 1
+	setCategoryGUI()
+	FileRead, content, %exclude_file%
+	if(NOT InStr(content, cat_global))
+		FileAppend, %cat_global%`n, %A_ScriptDir%\Exclude\Exclude.txt
+}
+
+IncludeFile(){
+	LineNum =
+	excludeCheck = 2
+	setCategoryGUI()
+	FileRead, Var, %exclude_file%
+	Loop, Parse, Var ,`n,`r
+	{
+		if(A_LoopField = cat_global)
+			{
+				LineNum := A_Index
+			}
+	}
+	if(LineNum = "Not found"){
+		MsgBox, This category has not been found
+	}
+	else{
+		ActivateFile(LineNum)
+		MsgBox, Folder activated
+	}
+}
+
+ActivateFile(index){
+	Loop, read, %exclude_file%, %A_ScriptDir%\Exclude\out.txt
+		{
+			If (A_Index != index){
+				FileAppend, %A_LoopReadLine%`n
+			}
+		}
+		fullbakfilename = %A_ScriptDir%\Exclude\exclude.bak
+		if not FileExist(fullbakfilename){
+			FileMove, %exclude_file%, %fullbakfilename%
+		}
+		else{
+			FileDelete, %fullbakfilename%
+			Sleep, 50
+			FileMove, %exclude_file%, %fullbakfilename%
+		}
+		
+		FileMove, %A_ScriptDir%\Exclude\out.txt, %exclude_file%
+		FileDelete, %A_ScriptDir%\Exclude\out.txt
+		FileDelete, %fullbakfilename%
+	
+}
+
+ExcludeMode(){
+	if(ExcludeMode){
+		FileDelete, %A_ScriptDir%\Exclude\ExcludeMode.txt
+		excludeMode = 
+		FileAppend, %excludeMode%, %A_ScriptDir%\Exclude\ExcludeMode.txt
+	}
+	else{
+		FileDelete, %A_ScriptDir%\Exclude\ExcludeMode.txt
+		excludeMode = Yes
+		FileAppend, %excludeMode%, %A_ScriptDir%\Exclude\ExcludeMode.txt
+	}
+	
+}
+
 
 SelectFile(){
 
@@ -112,7 +222,8 @@ DeleteLinkFromFile(){
 		StringReplace , MainFileTrimmed, MainFileText, %A_Space%,,All
 		FileAppend, %MainFileTrimmed%, %A_ScriptDir%\Temp\TempMainFile.txt
 		file = getMainFile() 
-		LineNum := getLineNumber(url)
+		file_temp = %A_ScriptDir%\Temp\TempMainFile.txt
+		LineNum := getLineNumber(url, file_temp)
 		if(LineNum = "Not found"){
 			MsgBox, This URL has not been found
 			FileDelete, %A_ScriptDir%\Temp\TempMainFile.txt
@@ -193,8 +304,7 @@ getMainFile(){
 	}
 }
 
-getLineNumber(url){
-	file = %A_ScriptDir%\Temp\TempMainFile.txt
+getLineNumber(url, file){
 	if not FileExist(file)
 		MsgBox, The file does not exist.
 	Loop, read, %file%
@@ -204,7 +314,7 @@ getLineNumber(url){
 			MainFile = %A_LoopField%
 		}
 	}
-	
+	MsgBox, %MainFile%
 	if not FileExist(file)
 		MsgBox, The file does not exist.
 		
@@ -214,7 +324,6 @@ getLineNumber(url){
 	{
 		if(A_LoopField = url)
 			{
-				MsgBox, %A_Index%
 				return A_Index
 				
 			}
@@ -289,7 +398,7 @@ CheckTabs(x, number, isIncognito){
 		number := 5
 	}
 	if(number < 1){
-		MsgBox, 4, , Do you want to open the links in incognito mode? , 15  ; 30-second timeout.
+		MsgBox, 4, , Do you want to open the links in incognito mode? , 15
 		IfMsgBox, No
 			isIncognito := ""
 		IfMsgBox, Timeout
@@ -441,7 +550,7 @@ SaveUrls(){
 	filename = %CurrentDateTimeFile%.txt
 	foldername = %CurrentDateTimeFolder%
 	MainFile = %A_ScriptDir%\AllSites\AllSites.txt
-
+	
 		if(url_list){
 			Clipboard := ClipSave
 			MsgBox, 3, , Categorised?, 10  ; 30-second timeout.
@@ -456,12 +565,15 @@ SaveUrls(){
 			IfMsgBox, Yes
 			{
 				fw = Categorised
-				InputBox, category, Which category?
+				excludeCheck = 0
+				setCategoryGUI()
+				category := cat_global
 			}
 			slash = \
 			restdir = %A_ScriptDir%\Perdate\
 			StringUpper, category, category, T
 			category = %category%%slash%
+			
 			IfInString, cat, %fw%
 			{
 				foldername_complete = %restdir%%fw%%slash%%category%%foldername%
@@ -482,6 +594,78 @@ SaveUrls(){
 		}
 	  }
 
+	  
+setCategoryGUI(){
+	
+	Gui, Add, Text,, Pick a file to launch from the list below.`nTo cancel, press ESCAPE or close this window.
+	Global MyListBox
+	if(excludeMode AND excludeCheck = 2)
+	{
+		Gui, Add, Text,, These files are excluded:
+	}
+	Gui, Add, ListBox, vMyListBox gMyListBox w640 r10
+	Gui, Add, Button, Default, OK
+	if(excludeCheck = 0){
+		Gui, Add, Button, , Create
+	}
+	
+	Loop, %A_ScriptDir%\PerDate\Categorised\*, 2, 0  ; Change this folder and wildcard pattern to suit your preferences.
+	{
+		if(excludeMode AND excludeCheck = 1){
+			IfNotInString, exclude, %A_LoopFileName% ; self-explanatory
+				GuiControl,, MyListBox, %A_LoopFileName%
+		}
+		else if(excludeMode AND excludeCheck = 2){
+			IfInString, exclude, %A_LoopFileName% ; self-explanatory
+				GuiControl,, MyListBox, %A_LoopFileName%
+		}
+		else if(not excludeMode AND excludeCheck = 2){
+			IfInString, exclude, %A_LoopFileName% ; self-explanatory
+				GuiControl,, MyListBox, %A_LoopFileName%
+		}
+		else if(not exclude_file AND excludeCheck = 2){
+			GuiControl,, MyListBox, Nothing is excluded
+		}
+		else{
+			GuiControl,, MyListBox, %A_LoopFileName%
+		}
+	}
+	
+	Gui, Show,,UrlSaver1.0
+	
+	WinWaitClose, UrlSaver1.0
+	
+	MyListBox:
+	if (A_GuiEvent <> "DoubleClick")
+		return
+	; Otherwise, the user double-clicked a list item, so treat that the same as pressing OK.
+	; So fall through to the next label.
+	
+	ButtonOK:
+		GuiControlGet, MyListBox  ; Retrieve the ListBox's current selection.
+		MsgBox, 4,, Would you like to select the category below?`n`n%MyListBox%
+		IfMsgBox, No
+			return
+		IfMsgBox, Yes
+			Gui, Submit 
+			Gui Destroy
+			cat_global := MyListBox
+			return
+	
+	ButtonCreate:
+		InputBox, category, Which category?
+			Gui Destroy
+			cat_global := category
+			return
+	
+	if (ErrorLevel = "ERROR")
+		MsgBox Could not launch the specified file. Perhaps it is not associated with anything.
+	
+	GuiEscape:
+	Gui Destroy
+}
+	  
+	  
 SearchFile(){
 	File := "*.txt"             ;can include directory -- * is wildcard
 	StringCheck := ""       	;replace with search string
