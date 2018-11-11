@@ -13,6 +13,7 @@ Global exclude
 Global excludeCheck
 Global excludeMode
 Global exclude_file
+Global exclude_length
 
 exclude_file = %A_ScriptDir%\Exclude\Exclude.txt
 FileRead, ExcludeMode, %A_ScriptDir%\Exclude\ExcludeMode.txt
@@ -30,7 +31,9 @@ actions:
    if (count = 2)
     {
 		MakeGui()
+		GetExludeLength()
 		FileRead, exclude, %exclude_file%
+		
     }
    else if (count = 3)
     {
@@ -57,6 +60,14 @@ actions:
  }
 return
 
+GetExludeLength(){
+	
+	Loop, Read, %exclude_file%
+	{
+	   exclude_length = %A_Index%
+	}
+	
+}
 
 MakeGui(){
 
@@ -74,7 +85,9 @@ MakeGui(){
 	Gui, Add, Button, x310 y50 w100 h30, Delete
 	Gui, Add, Button, x410 y50 w100 h30, Exclude
 	IfExist, %A_ScriptDir%\Exclude\Exclude.txt
-		Gui, Add, Button, x510 y50 w100 h30, Include
+		if(not excludeMode){
+			Gui, Add, Button, x510 y50 w100 h30, Include
+		}
 	
 	Gui, Add, Button, x810 y50 w100 h30, ExcludeMode
 	Gui, Show,, UrlSaver
@@ -91,7 +104,6 @@ MakeGui(){
 	
 	ButtonSearch:
 	SearchFile()
-	Gui Destroy
 	return
 	
 	ButtonExclude:
@@ -125,8 +137,7 @@ MakeGui(){
 	Gui Destroy
 	SaveUrls()
 	return
-
-
+	
 }
 
 ExcludeFile(){
@@ -136,6 +147,12 @@ ExcludeFile(){
 	FileRead, content, %exclude_file%
 	if(NOT InStr(content, cat_global))
 		FileAppend, %cat_global%`n, %A_ScriptDir%\Exclude\Exclude.txt
+	ExcludeMode()
+	Sleep, 250
+	ExcludeMode()
+	Sleep, 250
+	FileRead, exclude, %exclude_file%
+	MakeGui()()
 }
 
 IncludeFile(){
@@ -157,6 +174,13 @@ IncludeFile(){
 		ActivateFile(LineNum)
 		MsgBox, Folder activated
 	}
+	
+	ExcludeMode()
+	Sleep, 250
+	ExcludeMode()
+	Sleep, 250
+	FileRead, exclude, %exclude_file%
+	MakeGui()()
 }
 
 ActivateFile(index){
@@ -183,15 +207,37 @@ ActivateFile(index){
 }
 
 ExcludeMode(){
-	if(ExcludeMode){
+	if(excludeMode){
+		
+		Loop, %A_ScriptDir%\PerDate\Categorised\*, 2, 0
+		{
+			FileSetAttrib, -H, %A_LoopFileLongPath%
+		}
+		
 		FileDelete, %A_ScriptDir%\Exclude\ExcludeMode.txt
 		excludeMode = 
 		FileAppend, %excludeMode%, %A_ScriptDir%\Exclude\ExcludeMode.txt
+		
 	}
 	else{
+		
+		Loop, %A_ScriptDir%\PerDate\Categorised\*, 2, 0
+		{
+			directoryIndex := A_index
+
+			Loop, Read, %exclude_file%
+			{
+				if (InStr(A_LoopFileLongPath, A_LoopReadLine))
+				{
+					FileSetAttrib, +H, %A_LoopFileLongPath%
+				}
+			}
+		}
+		
 		FileDelete, %A_ScriptDir%\Exclude\ExcludeMode.txt
 		excludeMode = Yes
 		FileAppend, %excludeMode%, %A_ScriptDir%\Exclude\ExcludeMode.txt
+		
 	}
 	
 }
@@ -431,6 +477,8 @@ OpenLinks(url, isIncognito){
 	
 	if(isIncognito != ""){
 		Run "C:\Program Files (x86)\Google\Chrome\Application\chrome.exe" -incognito "%url%"
+		WinWaitActive, ahk_exe chrome.exe
+		Sleep, 500
 	}
 	else{
 		Run "C:\Program Files (x86)\Google\Chrome\Application\chrome.exe" "%url%"
@@ -615,6 +663,10 @@ setCategoryGUI(){
 			IfNotInString, exclude, %A_LoopFileName% ; self-explanatory
 				GuiControl,, MyListBox, %A_LoopFileName%
 		}
+		else if(not excludeMode AND excludeCheck = 1){
+			IfNotInString, exclude, %A_LoopFileName% ; self-explanatory
+				GuiControl,, MyListBox, %A_LoopFileName%
+		}
 		else if(excludeMode AND excludeCheck = 2){
 			IfInString, exclude, %A_LoopFileName% ; self-explanatory
 				GuiControl,, MyListBox, %A_LoopFileName%
@@ -624,7 +676,8 @@ setCategoryGUI(){
 				GuiControl,, MyListBox, %A_LoopFileName%
 		}
 		else if(not exclude_file AND excludeCheck = 2){
-			GuiControl,, MyListBox, Nothing is excluded
+			IfNotInString, exclude, %A_LoopFileName%
+				GuiControl,, MyListBox, Nothing is excluded
 		}
 		else{
 			GuiControl,, MyListBox, %A_LoopFileName%
@@ -663,6 +716,7 @@ setCategoryGUI(){
 	
 	GuiEscape:
 	Gui Destroy
+	return
 }
 	  
 	  
@@ -672,7 +726,7 @@ SearchFile(){
 	FileHit := ""               ;empty
 	
 	Directory = %A_ScriptDir%\PerDate
-
+	FileGetSize, exclude_size, %exclude_file%
 	If Directory
 	{
 		If(!InStr(FileExist(Directory), "D"))
@@ -692,12 +746,51 @@ SearchFile(){
 		MsgBox, Query canceled.
 		Exit
 	}
-
+	
 	Loop, %Directory%%File%, , 1
 	{
-	   FileRead, FileCheck, %A_LoopFileLongPath%
-	   IfInString, FileCheck, %StringCheck%
-		  FileHit%A_Index% := A_LoopFileLongPath
+		directoryIndex := A_index
+		if(excludeMode){
+		
+			IfNotExist, %exclude_file%
+			{
+				FileRead, FileCheck, %A_LoopFileLongPath%
+				IfInString, FileCheck, %StringCheck%
+					FileHit%A_Index% := A_LoopFileLongPath
+			}
+			
+			Loop, Read, %exclude_file%
+			{
+				if(A_LoopReadLine= " "){
+					FileRead, FileCheck, %A_LoopFileLongPath%
+					IfInString, FileCheck, %StringCheck%
+					  FileHit%A_Index% := A_LoopFileLongPath
+				}
+				
+				if (InStr(A_LoopFileLongPath, A_LoopReadLine))
+				{
+					break
+				}
+				else
+				{
+					if(A_Index = exclude_length)
+					{
+						FileRead, FileCheck, %A_LoopFileLongPath%
+						IfInString, FileCheck, %StringCheck%
+						{
+							FileHit%directoryIndex% := A_LoopFileLongPath
+						}
+					}
+				}
+			}
+		}
+		
+		if(not excludeMode){
+			FileRead, FileCheck, %A_LoopFileLongPath%
+			IfInString, FileCheck, %StringCheck%
+			  FileHit%A_Index% := A_LoopFileLongPath
+		}
+		
 	}
 	Loop, 100
 	{
