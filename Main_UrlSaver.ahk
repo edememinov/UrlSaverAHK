@@ -412,7 +412,7 @@ OpenUrls(x){
 		Return ; i.e. Assume "No" if it timed out.
 		; Otherwise, continue:
 	IfMsgBox, Yes
-		CheckTabs(x, 0, "")
+		CheckTabs(x, 0, "",0)
 	
 	return
 }
@@ -425,7 +425,7 @@ join( strArray )
   return substr(s, 3)
 }
 
-CheckTabs(x, number, isIncognito){
+CheckTabs(x, number, isIncognito, count){
 	notOpened := ""
 	opened_url := []
 	opened_url := GetUrlsList()
@@ -458,10 +458,15 @@ CheckTabs(x, number, isIncognito){
 		Loop, parse, A_LoopReadLine, %A_Tab%
 		{
 			OpenLinks(A_LoopField, isIncognito)
-			Sleep, 1000
 		}
 	}
-	Sleep, 4000
+	
+	if(count = 0){
+		FileDelete, %TempFileNotOpen%
+		count++
+		CheckTabs(x, number, isIncognito, count)
+	}
+	count++
 	if(notOpened = ""){
 		FileDelete, %TempFileNotOpen%
 		MsgBox, All sites are loaded
@@ -469,19 +474,19 @@ CheckTabs(x, number, isIncognito){
 	}
 	else{
 		FileDelete, %TempFileNotOpen%
-		CheckTabs(x, number, isIncognito)
+		CheckTabs(x, number, isIncognito, count)
 	}
 }
 
 OpenLinks(url, isIncognito){
 	
 	if(isIncognito != ""){
-		Run "C:\Program Files (x86)\Google\Chrome\Application\chrome.exe" -incognito "%url%"
-		WinWaitActive, ahk_exe chrome.exe
-		Sleep, 500
+		Run "chrome.exe" -incognito "%url%" --new-tab
+		chromePageWait()
 	}
 	else{
-		Run "C:\Program Files (x86)\Google\Chrome\Application\chrome.exe" "%url%"
+		Run "chrome.exe" "%url%" --new-tab
+		chromePageWait()
 	}
 
 }
@@ -573,6 +578,18 @@ GetUrlsList(){
 		return %url_list%
 	}
 }
+
+chromePageWait()
+{
+	global
+	Loop 50
+		{
+		while (A_Cursor = "AppStarting")
+			continue
+		Sleep, 100
+		}
+}
+	
 IsLineInMyFile(TestText, FilePath)
 {
     Loop, Read, %FilePath%
