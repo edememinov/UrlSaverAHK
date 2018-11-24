@@ -70,7 +70,6 @@ GetExludeLength(){
 }
 
 MakeGui(){
-
 	Gui, Add, Text,, Please select an option
 	if(excludeMode){
 		Gui, Add, Text,, The ExcludeMode is turned on
@@ -244,10 +243,13 @@ ExcludeMode(){
 
 
 SelectFile(){
+	
+	ChangeHiddenFiles()
 
 	FileSelectFile, SelectedFile, 3, %A_ScriptDir%\PerDate\, Open a file, Text Documents (*.txt; *.doc)
 		if SelectedFile !=
 			OpenUrls(SelectedFile)
+	ChangeHiddenFiles()
 }
 
 DeleteLinkFromFile(){
@@ -630,7 +632,7 @@ SaveUrls(){
 			IfMsgBox, Yes
 			{
 				fw = Categorised
-				excludeCheck = 0
+				excludeCheck = 1
 				setCategoryGUI()
 				category := cat_global
 			}
@@ -843,5 +845,14 @@ GetStringLocation(string){
 		return %FileHit%
 	Else
 		MsgBox, No match found.
+}
+
+ChangeHiddenFiles(){
+	RegRead, ValorHidden, HKEY_CURRENT_USER, Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced, Hidden
+	if ValorHidden = 2
+	  RegWrite, REG_DWORD, HKEY_CURRENT_USER, Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced, Hidden, 1
+	else
+	  RegWrite, REG_DWORD, HKEY_CURRENT_USER, Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced, Hidden, 2
+	return 
 }
 
