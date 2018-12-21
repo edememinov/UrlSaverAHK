@@ -7,6 +7,9 @@ IfNotExist, %A_ScriptDir%\Perdate
 	FileCreateDir, %A_ScriptDir%\Perdate
 IfNotExist, %A_ScriptDir%\Exclude
 	FileCreateDir, %A_ScriptDir%\Exclude
+	
+IfExist, %A_ScriptDir%\Temp\TempNotOpen.txt
+	FileDelete, %A_ScriptDir%\Temp\TempNotOpen.txt
 				
 Global cat_global
 Global exclude
@@ -19,6 +22,8 @@ exclude_file = %A_ScriptDir%\Exclude\Exclude.txt
 FileRead, ExcludeMode, %A_ScriptDir%\Exclude\ExcludeMode.txt
 FileRead, exclude, %exclude_file%
 
+RegWrite, REG_DWORD, HKEY_CURRENT_USER, Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced, Hidden, 1
+
 ~$f6::
  {
    count++
@@ -30,10 +35,7 @@ actions:
  {
    if (count = 2)
     {
-		MakeGui()
-		GetExludeLength()
-		FileRead, exclude, %exclude_file%
-		
+		CallGUI()
     }
    else if (count = 3)
     {
@@ -69,6 +71,13 @@ GetExludeLength(){
 	
 }
 
+CallGUI(){
+
+	MakeGui()
+	GetExludeLength()
+	FileRead, exclude, %exclude_file%
+}
+
 MakeGui(){
 	Gui, Add, Text,, Please select an option
 	if(excludeMode){
@@ -83,9 +92,10 @@ MakeGui(){
 	Gui, Add, Button, x210 y50 w100 h30, Search
 	Gui, Add, Button, x310 y50 w100 h30, Delete
 	Gui, Add, Button, x410 y50 w100 h30, Exclude
+	Gui, Add, Button, x510 y50 w100 h30, MergeFiles
 	IfExist, %A_ScriptDir%\Exclude\Exclude.txt
 		if(not excludeMode){
-			Gui, Add, Button, x510 y50 w100 h30, Include
+			Gui, Add, Button, x610 y50 w100 h30, Include
 		}
 	
 	Gui, Add, Button, x810 y50 w100 h30, ExcludeMode
@@ -120,6 +130,11 @@ MakeGui(){
 	Gui Destroy
 	Sleep, 125
 	MakeGui()
+	return
+	
+	ButtonMergeFiles:
+	Gui Destroy
+	CombineAllFiles()
 	return
 	
 	
@@ -249,7 +264,9 @@ SelectFile(){
 	FileSelectFile, SelectedFile, 3, %A_ScriptDir%\PerDate\, Open a file, Text Documents (*.txt; *.doc)
 		if SelectedFile !=
 			OpenUrls(SelectedFile)
-	ChangeHiddenFiles()
+		else{
+			ChangeHiddenFiles()
+		}
 }
 
 DeleteLinkFromFile(){
@@ -269,7 +286,7 @@ DeleteLinkFromFile(){
 		MainFileText := GetStringLocation(url)
 		StringReplace , MainFileTrimmed, MainFileText, %A_Space%,,All
 		FileAppend, %MainFileTrimmed%, %A_ScriptDir%\Temp\TempMainFile.txt
-		file = getMainFile() 
+		file := getMainFile() 
 		file_temp = %A_ScriptDir%\Temp\TempMainFile.txt
 		LineNum := getLineNumber(url, file_temp)
 		if(LineNum = "Not found"){
@@ -277,7 +294,9 @@ DeleteLinkFromFile(){
 			FileDelete, %A_ScriptDir%\Temp\TempMainFile.txt
 		}
 		else{
-			RemoveFromFile(LineNum, file)
+			RemoveFromFile(LineNum)
+			SplitPath, file,, dir
+			MakeCombineFiles(dir)
 			FileDelete, %A_ScriptDir%\Temp\TempMainFile.txt
 			MsgBox, Removed from file
 		}
@@ -289,7 +308,42 @@ DeleteLinkFromFile(){
 	}
 }
 
-RemoveFromFile(index, file){
+MakeCombineFiles(folder){
+	
+	SplitPath, folder,, dir
+	
+	StringGetPos, p1,folder, \ , R1                ;- gets the position P1 of \ from Right
+	Stringtrimleft,cat,folder,(P1+1)    ;- extracts  Mouse in onlyfoldername
+
+	File := "*.txt"             ;can include directory -- * is wildcard
+	StringCheck := ""       	;replace with search string
+	FileHit := ""               ;empty
+	IgnoreFile := "watched"
+	Directory = %dir%\%cat%
+	MainFile = %Directory%\big_file.txt
+
+	If Directory
+	{
+		StringRight, DirectoryEndingChar, Directory, 1
+		If(DirectoryEndingChar != "\")
+			Directory .= "\"
+	}
+	IfExist, %MainFile%
+	{
+		Sleep, 500
+		FileDelete, %MainFile%
+		Loop, %Directory%%File%, , 1
+		{
+			FileRead, FileCheck, %A_LoopFileLongPath%
+					IfNotInString, A_LoopFileLongPath, %IgnoreFile%
+						FileAppend, %FileCheck%, %MainFile%
+			
+		}
+	}
+
+}
+
+RemoveFromFile(index){
 	
 	tempfile = %A_ScriptDir%\Temp\TempMainFile.txt
 	
@@ -380,6 +434,8 @@ getLineNumber(url, file){
 
 OpenUrls(x){
 
+	ChangeHiddenFiles()
+
 	Loop, Read, %x%
 	{
 	   total_lines = %A_Index%
@@ -427,9 +483,40 @@ join( strArray )
   return substr(s, 3)
 }
 
+CombineAllFiles(){
+	setCategoryGUI()
+	File := "*.txt"             ;can include directory -- * is wildcard
+	StringCheck := ""       	;replace with search string
+	FileHit := ""               ;empty
+	IgnoreFile := "watched"
+	Directory = %A_ScriptDir%\PerDate\Categorised\%cat_global%
+	MainFile = %Directory%\big_file.txt
+	FileGetSize, exclude_size, %exclude_file%
+	If Directory
+	{
+		StringRight, DirectoryEndingChar, Directory, 1
+		If(DirectoryEndingChar != "\")
+			Directory .= "\"
+	}
+	
+	IfExist, %MainFile%
+	{
+		FileDelete, %MainFile%
+	}
+	
+	Loop, %Directory%%File%, , 1
+	{
+		FileRead, FileCheck, %A_LoopFileLongPath%
+				IfNotInString, A_LoopFileLongPath, %IgnoreFile%
+					FileAppend, %FileCheck%, %MainFile%
+		
+	}
+}
+
 CheckTabs(x, number, isIncognito, count){
 	notOpened := ""
 	opened_url := []
+	notOpenedList := []
 	opened_url := GetUrlsList()
 	TempFileNotOpen = %A_ScriptDir%\Temp\TempNotOpen.txt
 	Loop, read, %x%
@@ -455,40 +542,37 @@ CheckTabs(x, number, isIncognito, count){
 			isIncognito = Yes
 	}
 	number++
+	
 	Loop, read, %TempFileNotOpen%
 	{
 		Loop, parse, A_LoopReadLine, %A_Tab%
 		{
+			;notOpenedList.Push(A_LoopField)
 			OpenLinks(A_LoopField, isIncognito)
 		}
 	}
 	
-	if(count = 0){
-		FileDelete, %TempFileNotOpen%
-		count++
-		CheckTabs(x, number, isIncognito, count)
-	}
-	count++
+	chromePageWait()
 	if(notOpened = ""){
 		FileDelete, %TempFileNotOpen%
 		MsgBox, All sites are loaded
 		return
 	}
-	else{
+	else if(notOpened != "" OR count = 0){
 		FileDelete, %TempFileNotOpen%
+		count++
 		CheckTabs(x, number, isIncognito, count)
 	}
+	count++
 }
 
 OpenLinks(url, isIncognito){
 	
 	if(isIncognito != ""){
 		Run "chrome.exe" -incognito "%url%" --new-tab
-		chromePageWait()
 	}
 	else{
 		Run "chrome.exe" "%url%" --new-tab
-		chromePageWait()
 	}
 
 }
@@ -632,7 +716,7 @@ SaveUrls(){
 			IfMsgBox, Yes
 			{
 				fw = Categorised
-				excludeCheck = 1
+				excludeCheck = 3
 				setCategoryGUI()
 				category := cat_global
 			}
@@ -695,6 +779,10 @@ setCategoryGUI(){
 				GuiControl,, MyListBox, %A_LoopFileName%
 		}
 		else if(not exclude_file AND excludeCheck = 2){
+			IfNotInString, exclude, %A_LoopFileName%
+				GuiControl,, MyListBox, Nothing is excluded
+		}
+		else if(excludeMode AND excludeCheck = 3){
 			IfNotInString, exclude, %A_LoopFileName%
 				GuiControl,, MyListBox, Nothing is excluded
 		}
