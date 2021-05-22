@@ -1,4 +1,4 @@
-﻿SetWorkingDir %A_ScriptDir%
+SetWorkingDir %A_ScriptDir%
 IfNotExist, %A_ScriptDir%\AllSites
 	FileCreateDir, %A_ScriptDir%\AllSites
 IfNotExist, %A_ScriptDir%\Temp
@@ -61,6 +61,14 @@ actions:
    count := 0
  }
 return
+
+OpenThroughExtension(){
+	
+	setCategoryGUI()
+	run %A_ScriptDir%\PerDate\Categorised\%cat_global%
+
+}
+
 
 GetExludeLength(){
 	
@@ -756,6 +764,7 @@ setCategoryGUI(){
 	}
 	Gui, Add, ListBox, vMyListBox gMyListBox w640 r10
 	Gui, Add, Button, Default, OK
+	Gui, Add, Button, Default, Create
 	if(excludeCheck = 0){
 		Gui, Add, Button, , Create
 	}
@@ -784,7 +793,7 @@ setCategoryGUI(){
 		}
 		else if(excludeMode AND excludeCheck = 3){
 			IfNotInString, exclude, %A_LoopFileName%
-				GuiControl,, MyListBox, Nothing is excluded
+				GuiControl,, MyListBox, %A_LoopFileName%
 		}
 		else{
 			GuiControl,, MyListBox, %A_LoopFileName%
